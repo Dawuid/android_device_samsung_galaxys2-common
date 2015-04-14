@@ -38,6 +38,10 @@ __doc__ = ota_from_target_files.__doc__
 def CopyBootFiles(input_zip, output_zip):
     output_zip.write(os.path.join(TARGET_DIR, "boot.img"),"boot.img")
 
+def CopyBackupFiles(input_zip, output_zip):
+    output_zip.write(os.path.join(TARGET_DIR, "install/bin/backuptool.sh "),"install/bin/backuptool.sh")
+    output_zip.write(os.path.join(TARGET_DIR, "install/bin/backuptool.functions "),"install/bin/backuptool.functions")
+
 def WriteFullOTAPackage(input_zip, output_zip):
   # TODO: how to determine this?  We don't know what version it will
   # be installed on top of.  For now, we expect the API just won't
@@ -65,6 +69,20 @@ def WriteFullOTAPackage(input_zip, output_zip):
   AppendAssertions(script, device_specific.info_dict)
   device_specific.FullOTA_Assertions()
   if OPTIONS.backuptool:
+    # backup fix: No idea how this is done in the good way, so raw written
+    script.AppendExtra(script, 'ifelse(is_mounted("/system"), unmount("/system"));')
+    script.UnpackPackageDir("install", "/tmp/install")
+    # Maybe resolving item set description for install...
+    # install_items = ItemSet("install", "META/filesystem_config.txt")
+    # install_items.GetMetadata(input_zip)
+    # install_items.Get("install").SetPermissions(script)
+    # CopyPartitionFiles(install_items, input_zip, output_zip)
+    # install/ backup files should come to that file (filesystem_config.txt) through android_vendor_cm/config/common.mk (line 81-82)
+    # by some way but seems that all this is happening in script.RunBackup... where is the method??
+    script.AppendExtra(script, 'set_metadata_recursive("/tmp/install", "uid", 0, "gid", 0, "dmode", 0755, "fmode", 0644);')
+    script.AppendExtra(script, 'set_metadata_recursive("/tmp/install/bin", "uid", 0, "gid", 0, "dmode", 0755, "fmode", 0755);')
+    CopyBackupFiles(input_zip, output_zip)
+    # backup fix: end
     script.Mount("/system")
     script.RunBackup("backup")
     script.Unmount("/system")
